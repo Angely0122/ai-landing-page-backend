@@ -9,12 +9,10 @@ from app.models import (
 )
 from app.llm.generator import generate_page_spec, regenerate_section
 from app.db import save_page, get_page, update_page, publish_page, delete_page
-from app.crawler import WebCrawler
 import uuid
 import logging
 
 logger = logging.getLogger(__name__)
-crawler = WebCrawler()
 
 router = APIRouter()
 
@@ -22,6 +20,7 @@ router = APIRouter()
 async def generate_landing_page(request: GeneratePageRequest):
     """
     Generate a new landing page spec from user input
+    Optionally crawls website to extract brand context
     
     Returns:
         PageSpecResponse: Generated page specification
@@ -31,13 +30,11 @@ async def generate_landing_page(request: GeneratePageRequest):
             "industry": request.industry,
             "offer": request.offer,
             "target_audience": request.target_audience,
-            "brand_tone": request.brand_tone
+            "brand_tone": request.brand_tone,
+            "url": request.website_url  # optional
         }
         
-        # TODO: Add crawling here if website_url is provided
-        # crawled_data = crawl_website(request.website_url)
-        
-        # Generate page spec from LLM
+        # Generate page spec (crawler is called internally if URL provided)
         page_spec = generate_page_spec(user_input)
         
         # Assign unique ID if not present
@@ -329,3 +326,4 @@ async def delete_landing_page(page_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete page: {str(e)}"
         )
+    

@@ -1,7 +1,12 @@
+# generator.py
 import os
 import json
 from openai import AzureOpenAI
 from .prompts import build_landing_page_prompt, build_section_regenerate_prompt
+from app.crawler import WebCrawler
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Initialize Azure OpenAI client
 AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT")
@@ -16,26 +21,66 @@ client = AzureOpenAI(
     azure_endpoint=AZURE_ENDPOINT
 )
 
-def generate_page_spec(user_input: dict, crawled_data: list = None) -> dict:
+crawler = WebCrawler()
+
+def generate_page_spec(user_input: dict) -> dict:
     """
     Generate a complete landing page spec using Azure OpenAI
     
     Args:
-        user_input: dict with industry, offer, target_audience, brand_tone
-        crawled_data: optional list of crawled website data
+        user_input: dict with industry, offer, target_audience, brand_tone, and optional url
     
     Returns:
         dict: page specification JSON
     """
     try:
-        prompt = build_landing_page_prompt(user_input, crawled_data)
+        # Extract URL if provided
+        website_url = user_input.get("url")
+        crawled_context = None
+        
+        print(f"\n[GENERATOR] user_input keys: {user_input.keys()}", flush=True)
+        print(f"[GENERATOR] website_url: {website_url}", flush=True)
+        
+        # Crawl website if URL provided
+        if website_url:
+            print(f"[GENERATOR] Starting crawl of: {website_url}", flush=True)
+            logger.info(f"Crawling website: {website_url}")
+            crawled_context = crawler.crawl_website(website_url)
+            print(f"[GENERATOR] Crawl result: {crawled_context is not None}", flush=True)
+            if crawled_context:
+                print(f"[GENERATOR] Crawled context length: {len(crawled_context)}", flush=True)
+                logger.info("✓ Website crawled successfully")
+            else:
+                print(f"[GENERATOR] Crawl returned None", flush=True)
+                logger.warning("Website crawl failed, proceeding without brand context")
+        else:
+            print(f"[GENERATOR] No URL provided", flush=True)
+            logger.info("No URL provided, generating without brand context")
+        
+        # Log whether context was provided
+        logger.info(f"Generating page spec with crawled context: {crawled_context is not None}")
+        if crawled_context:
+            logger.info(f"Crawled context length: {len(crawled_context)} characters")
+            logger.debug(f"First 500 chars of context: {crawled_context[:500]}")
+        
+        prompt = build_landing_page_prompt(user_input, crawled_context)
+        
+        # Log the actual prompt being sent
+        logger.debug(f"Full prompt length: {len(prompt)} characters")
+        logger.debug(f"Prompt contains 'BRAND CONTEXT': {'BRAND CONTEXT' in prompt}")
         
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a JSON generation expert. Return ONLY valid JSON, no markdown code blocks, no extra text."
+                    "content": (
+                        "You are an expert landing page designer and conversion copywriter. "
+                        "You create compelling marketing copy that drives action, matches brand voice, "
+                        "and resonates with target audiences. You have deep knowledge of persuasive writing, "
+                        "user psychology, and marketing best practices. "
+                        "You always return your work as valid JSON with no markdown formatting."
+                    )
                 },
                 {
                     "role": "user",
@@ -71,7 +116,15 @@ def regenerate_section(section: dict, user_input: dict) -> dict:
         dict: updated section
     """
     try:
-        prompt = build_section_regenerate_prompt(section, user_input)
+        # Extract and crawl URL if provided
+        website_url = user_input.get("url")
+        crawled_context = None
+        
+        if website_url:
+            logger.info(f"Crawling website for section regeneration: {website_url}")
+            crawled_context = crawler.crawl_website(website_url)
+        
+        prompt = build_section_regenerate_prompt(section, user_input, crawled_context)
         
         response = client.chat.completions.create(
             model="gpt-4o",

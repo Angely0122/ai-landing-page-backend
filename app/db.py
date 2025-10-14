@@ -4,11 +4,16 @@ import os
 from datetime import datetime
 from bson.objectid import ObjectId
 
+import dns.resolver
+_res = dns.resolver.Resolver(configure=True)
+_res.nameservers = ['1.1.1.1', '8.8.8.8']  # Cloudflare + Google
+dns.resolver.default_resolver = _res
+
 MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
     raise ValueError("MONGO_URI not found in environment variables")
 
-client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000, tls=True,)
 db = client["landing_page_builder"]
 pages_collection = db["pages"]
 
