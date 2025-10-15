@@ -1,8 +1,11 @@
 # prompts.py
 import json
+import uuid
 
 def build_landing_page_prompt(user_input: dict, crawled_context: str = None) -> str:
     """Build the main prompt for landing page generation"""
+
+    unique_page_id = f"landing-{uuid.uuid4().hex[:8]}"
     
     # Base context from user input
     industry = user_input.get('industry', 'general business')
@@ -70,7 +73,7 @@ Return ONLY valid JSON. No markdown code blocks (```json), no explanatory text, 
 Use this exact structure: 
 
 {{
-  "pageId": "landing-001",
+  "pageId": "{unique_page_id}",
   "version": 1,
   "sections": [
     {{
@@ -207,73 +210,94 @@ Generate the complete landing page JSON now:"""
     return prompt
 
 
-def build_section_regenerate_prompt(section: dict, user_input: dict, crawled_context: str = None) -> str:
-    """Build prompt for regenerating a single section"""
+def build_section_regenerate_prompt(section: dict, user_context: dict, crawled_context: str = None) -> str:
+    """Build prompt for regenerating a single section with new, unique content"""
     
     section_type = section.get("type")
-    section_id = section.get("id")
-    order = section.get("order", 0)
+    current_data = section.get('data', {})
     
-    industry = user_input.get('industry', 'general business')
-    offer = user_input.get('offer', '')
-    target_audience = user_input.get('target_audience', '')
-    brand_tone = user_input.get('brand_tone', 'professional')
-    
-    # Build brand context if available
-    brand_context_section = ""
+    crawl_info = ""
     if crawled_context:
-        brand_context_section = f"""
-## BRAND CONTEXT (From Website)
-{crawled_context[:1500]}...
-
-IMPORTANT: Match the tone, voice, and style from this brand context in your regenerated section.
-"""
+        crawl_info = f"\n\nBRAND CONTEXT FROM WEBSITE:\n{crawled_context}\n"
     
-    # Section-specific instructions
+    # Build section-specific regeneration instructions
     section_instructions = {
-        "hero": "Create a powerful, benefit-driven headline with a clear CTA. The hero should immediately communicate value.",
-        "features": "Focus on benefits rather than features. Each item should answer 'What does the customer gain?'",
-        "testimonials": "Make testimonials specific and authentic. Include concrete results or emotional benefits.",
-        "faq": "Address real objections and concerns. Keep answers concise but helpful.",
-        "contact": "Create urgency and reinforce value. Make the CTA compelling.",
-        "footer": "Keep it clean and functional."
+        "hero": """For HERO section, regenerate with:
+- NEW headline (5-8 words, powerful, unique angle)
+- NEW subheadline (1-2 sentences, different messaging)
+- Same CTA button text OR new CTA if makes sense
+- NEW background image URL from Unsplash that fits the new angle
+- Keep same text and background colors""",
+        
+        "features": """For FEATURES section, regenerate with:
+- NEW section title and description
+- 3 NEW features (different benefits/angles from current)
+- Keep emoji icons
+- Different wording, same structure
+- Focus on different value propositions""",
+        
+        "testimonials": """For TESTIMONIALS section, regenerate with:
+- NEW section title
+- 2 NEW testimonials (different quotes, different personas)
+- NEW customer names, roles, companies
+- Keep 5-star ratings
+- Different benefits highlighted vs current version""",
+        
+        "faq": """For FAQ section, regenerate with:
+- NEW section title (if different angle needed)
+- 3 NEW FAQ questions and answers
+- Different common questions than current
+- 1-2 sentence answers
+- Address different concerns/use cases""",
+        
+        "contact": """For CONTACT section, regenerate with:
+- NEW CTA headline
+- NEW description copy
+- Keep same form fields (email, company, message)
+- NEW submit button text if appropriate
+- Keep background color""",
+        
+        "footer": """For FOOTER section, regenerate with:
+- Same link structure and URLs
+- Same social links
+- NEW copyright notice or company tagline if applicable"""
     }
     
-    prompt = f"""You are an expert landing page copywriter. Regenerate the {section_type} section with fresh, compelling content.
+    instructions = section_instructions.get(section_type, "Regenerate this section with new, unique content while keeping the same structure.")
+    
+    prompt = f"""You are an expert landing page designer. Regenerate a single landing page section.
 
-## CONTEXT
-- Industry: {industry}
-- Offer: {offer}
-- Target Audience: {target_audience}
-- Brand Tone: {brand_tone}
+ORIGINAL USER CONTEXT:
+- Industry: {user_context.get('industry', '')}
+- Offer: {user_context.get('offer', '')}
+- Target Audience: {user_context.get('target_audience', '')}
+- Brand Tone: {user_context.get('brand_tone', '')}{crawl_info}
 
-{brand_context_section}
+CURRENT {section_type.upper()} SECTION TO REPLACE:
+{str(current_data)}
 
-## CURRENT SECTION
-Type: {section_type}
-Current Data: {json.dumps(section.get('data', {}), indent=2)}
+REGENERATION INSTRUCTIONS:
+{instructions}
 
-## YOUR TASK
-{section_instructions.get(section_type, 'Create an improved version of this section.')}
+KEY RULES:
+1. Create completely NEW content (different headlines, copy, etc.) - NOT a slight variation
+2. Keep the same JSON structure and field names
+3. Maintain the brand tone and industry context
+4. Keep appealing to the target audience
+5. Don't use the exact same words/phrases as the current version
+6. All data should be realistic and specific to the industry
 
-Requirements:
-1. **Create completely NEW content** - don't just tweak the existing copy
-2. **Match the brand tone** from the context (if provided)
-3. **Keep the same JSON structure** - only change the content values
-4. **Be specific to the industry** and target audience
-5. **Focus on benefits and value** for the customer
-
-Return ONLY valid JSON (no markdown, no code blocks, no extra text):
+Return ONLY valid JSON, no markdown, no code blocks. Ensure valid JSON format:
 
 {{
-  "id": "{section_id}",
+  "id": "{section.get('id')}",
   "type": "{section_type}",
-  "order": {order},
+  "order": {section.get('order', 0)},
   "data": {{
-    ... (generate appropriate fields for {section_type})
+    // Your new content here - match the structure of current data
   }}
 }}
 
-Generate the regenerated section JSON now:"""
+Generate completely NEW and UNIQUE content now:"""
     
     return prompt

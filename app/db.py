@@ -1,3 +1,4 @@
+# db.py
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 import os
@@ -33,7 +34,7 @@ def init_db():
         print("✗ Failed to connect to MongoDB")
         raise
 
-def save_page(page_spec: dict, user_id: str = None) -> dict:
+def save_page(page_spec: dict, user_context: dict = None, crawled_context: str = None, user_id: str = None) -> dict:
     """Save page spec to MongoDB"""
     document = {
         "page_id": page_spec.get("pageId"),
@@ -42,7 +43,9 @@ def save_page(page_spec: dict, user_id: str = None) -> dict:
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
         "user_id": user_id,
-        "published": False
+        "published": False,
+        "user_context": user_context or {},
+        "crawled_context": crawled_context
     }
     
     result = pages_collection.insert_one(document)
@@ -55,6 +58,28 @@ def get_page(page_id: str) -> dict:
     if page:
         page["_id"] = str(page["_id"])
     return page
+
+def get_all_pages(user_id: str = None, limit: int = 50) -> list:
+    """Retrieve all pages with optional user filtering"""
+    query = {}
+    if user_id:
+        query["user_id"] = user_id
+    
+    pages = pages_collection.find(query).sort("updated_at", -1).limit(limit)
+    
+    result = []
+    for page in pages:
+        result.append({
+            "_id": str(page["_id"]),
+            "page_id": page["page_id"],
+            "version": page.get("version", 1),
+            "section_count": len(page.get("sections", [])),
+            "created_at": page.get("created_at"),
+            "updated_at": page.get("updated_at"),
+            "published": page.get("published", False)
+        })
+    
+    return result
 
 def update_page(page_id: str, sections: list) -> dict:
     """Update page sections and increment version"""

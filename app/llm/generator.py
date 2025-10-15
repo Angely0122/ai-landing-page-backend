@@ -23,7 +23,7 @@ client = AzureOpenAI(
 
 crawler = WebCrawler()
 
-def generate_page_spec(user_input: dict) -> dict:
+def generate_page_spec(user_input: dict, crawled_context: str = None) -> dict:
     """
     Generate a complete landing page spec using Azure OpenAI
     
@@ -104,34 +104,40 @@ def generate_page_spec(user_input: dict) -> dict:
         raise Exception(f"Error generating page spec: {str(e)}")
 
 
-def regenerate_section(section: dict, user_input: dict) -> dict:
+def regenerate_section(section: dict, prompt: str) -> dict:
     """
     Regenerate a single section with new prompt
     
     Args:
         section: the section object to regenerate
-        user_input: context about the page (industry, offer, etc)
+        prompt: the full prompt to send to LLM
     
     Returns:
         dict: updated section
     """
     try:
         # Extract and crawl URL if provided
-        website_url = user_input.get("url")
+        website_url = prompt.get("url")
         crawled_context = None
         
         if website_url:
             logger.info(f"Crawling website for section regeneration: {website_url}")
             crawled_context = crawler.crawl_website(website_url)
         
-        prompt = build_section_regenerate_prompt(section, user_input, crawled_context)
+        prompt = build_section_regenerate_prompt(section, prompt, crawled_context)
         
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a JSON generation expert. Return ONLY valid JSON, no markdown code blocks, no extra text."
+                    "content": (
+                        "You are an expert landing page designer and conversion copywriter. "
+                        "You create compelling marketing copy that drives action, matches brand voice, "
+                        "and resonates with target audiences. You have deep knowledge of persuasive writing, "
+                        "user psychology, and marketing best practices. "
+                        "You always return your work as valid JSON with no markdown formatting."
+                    )
                 },
                 {
                     "role": "user",

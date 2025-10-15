@@ -9,10 +9,12 @@ from app.models import (
 )
 from app.llm.generator import generate_page_spec, regenerate_section
 from app.db import save_page, get_page, update_page, publish_page, delete_page
+from app.crawler import WebCrawler
 import uuid
 import logging
 
 logger = logging.getLogger(__name__)
+crawler = WebCrawler()
 
 router = APIRouter()
 
@@ -30,12 +32,21 @@ async def generate_landing_page(request: GeneratePageRequest):
             "industry": request.industry,
             "offer": request.offer,
             "target_audience": request.target_audience,
-            "brand_tone": request.brand_tone,
-            "url": request.website_url  # optional
+            "brand_tone": request.brand_tone
         }
         
-        # Generate page spec (crawler is called internally if URL provided)
-        page_spec = generate_page_spec(user_input)
+        # Crawl website if URL provided
+        crawled_context = None
+        if request.website_url:
+            logger.info(f"Crawling website: {request.website_url}")
+            crawled_context = crawler.crawl_website(request.website_url)
+            if crawled_context:
+                logger.info("✓ Website crawled successfully")
+            else:
+                logger.warning("Website crawl failed, proceeding without brand context")
+        
+        # Generate page spec from LLM (with or without crawled context)
+        page_spec = generate_page_spec(user_input, crawled_context)
         
         # Assign unique ID if not present
         if "pageId" not in page_spec:
@@ -44,8 +55,12 @@ async def generate_landing_page(request: GeneratePageRequest):
         if "version" not in page_spec:
             page_spec["version"] = 1
         
-        # Save to database
-        saved = save_page(page_spec)
+        # Save to database WITH context (for regeneration)
+        saved = save_page(
+            page_spec,
+            user_context=user_input,
+            crawled_context=crawled_context
+        )
         
         return PageSpecResponse(
             pageId=page_spec["pageId"],
@@ -63,7 +78,33 @@ async def generate_landing_page(request: GeneratePageRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate landing page: {str(e)}"
         )
-
+    
+@router.get("/pages", response_model=list)
+async def list_pages():
+    """
+    Retrieve all saved pages
+    
+    Returns:
+        list: List of page summaries
+    """
+    try:
+        from app.db import get_all_pages
+        pages = get_all_pages()
+        
+        return [{
+            "pageId": page["page_id"],
+            "version": page["version"],
+            "sectionCount": page["section_count"],
+            "createdAt": page["created_at"].isoformat() if page.get("created_at") else None,
+            "updatedAt": page["updated_at"].isoformat() if page.get("updated_at") else None,
+            "published": page.get("published", False)
+        } for page in pages]
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve pages: {str(e)}"
+        )
 
 @router.get("/pages/{page_id}", response_model=PageSpecResponse)
 async def get_landing_page(page_id: str):
@@ -326,4 +367,3 @@ async def delete_landing_page(page_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete page: {str(e)}"
         )
-    

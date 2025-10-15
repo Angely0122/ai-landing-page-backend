@@ -47,6 +47,9 @@ class PageDocument(BaseModel):
     updated_at: datetime
     user_id: Optional[str] = None
     published: bool = False
+    # NEW: Store context for regeneration
+    user_context: Dict[str, str] = {}
+    crawled_context: Optional[str] = None
 
     class Config:
         json_schema_extra = {
@@ -57,6 +60,13 @@ class PageDocument(BaseModel):
                 "created_at": "2025-01-01T00:00:00",
                 "updated_at": "2025-01-01T00:00:00",
                 "user_id": "user-123",
-                "published": False
+                "published": False,
+                "user_context": {
+                    "industry": "SaaS",
+                    "offer": "AI tool",
+                    "target_audience": "Developers",
+                    "brand_tone": "Modern"
+                },
+                "crawled_context": None
             }
         }
