@@ -104,5 +104,5 @@ print(f"Generated page ID: {page_data['page_id']}")
 
 ## 📚 Documentation
 
-- [Architecture Decision Records](backend/docs/ADR.md)
-- [System Architecture Diagram](backend/docs/ARCH.html)
+- [Architecture Decision Records](https://github.com/Angely0122/ai-landing-page-backend/blob/main/docs/ADR.md)
+- [System Architecture Diagram](https://htmlpreview.github.io/?https://github.com/Angely0122/ai-landing-page-backend/blob/main/docs/ARCH.html)
