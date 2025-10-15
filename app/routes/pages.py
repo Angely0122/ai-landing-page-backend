@@ -115,7 +115,7 @@ async def get_landing_page(page_id: str):
         page_id: The page ID to retrieve
     
     Returns:
-        PageSpecResponse: The page specification
+        PageSpecResponse: The page specification with user context
     """
     try:
         page = get_page(page_id)
@@ -126,11 +126,18 @@ async def get_landing_page(page_id: str):
                 detail=f"Page {page_id} not found"
             )
         
-        return PageSpecResponse(
-            pageId=page["page_id"],
-            version=page["version"],
-            sections=page["sections"]
-        )
+        # Include user_context in the response
+        response_data = {
+            "pageId": page["page_id"],
+            "version": page["version"],
+            "sections": page["sections"]
+        }
+        
+        # Add user_context if it exists
+        if "user_context" in page and page["user_context"]:
+            response_data["user_context"] = page["user_context"]
+        
+        return response_data
         
     except HTTPException:
         raise
@@ -139,7 +146,6 @@ async def get_landing_page(page_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve page: {str(e)}"
         )
-
 
 @router.post("/pages/{page_id}/edit-section")
 async def edit_section(page_id: str, request: EditSectionRequest):

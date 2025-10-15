@@ -31,6 +31,7 @@ class PageSpecResponse(BaseModel):
     pageId: str
     version: int
     sections: List[SectionData]
+    user_context: Optional[Dict[str, str]] = None
 
 class PublishResponse(BaseModel):
     page_id: str
